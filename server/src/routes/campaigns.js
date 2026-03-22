@@ -13,73 +13,81 @@ router.get('/', async (req, res) => {
   try {
     const client = createClient(apiKey);
 
-    // Fetch all sent campaigns
+    // Fetch all sent email campaigns in the date range
     const campaigns = await paginateAll(client, '/campaigns', {
-      'filter': `equals(messages.channel,'email'),greater-or-equal(created_at,${startDate}T00:00:00Z),less-or-equal(created_at,${endDate}T23:59:59Z)`,
-      'fields[campaign]': 'name,status,created_at,send_time,audiences',
-      'fields[campaign-message]': 'label,channel,content',
-      'include': 'campaign-messages',
+      'filter': `equals(status,"Sent"),equals(messages.channel,"email"),greater-or-equal(send_time,${startDate}T00:00:00Z),less-or-equal(send_time,${endDate}T23:59:59Z)`,
+      'fields[campaign]': 'name,status,send_time,created_at',
     });
 
-    // Filter to sent campaigns
-    const sentCampaigns = campaigns.filter(c => c.attributes?.status === 'Sent');
-
-    // Fetch reports for each campaign in parallel (batched to avoid rate limits)
-    const batchSize = 5;
-    const campaignsWithReports = [];
-
-    for (let i = 0; i < sentCampaigns.length; i += batchSize) {
-      const batch = sentCampaigns.slice(i, i + batchSize);
-      const reports = await Promise.all(
-        batch.map(async (campaign) => {
-          try {
-            const reportRes = await client.get(`/campaign-values-reports/`, {
-              params: {
-                'filter': `equals(campaign_id,"${campaign.id}")`,
-                'statistics': 'opens,clicks,unsubscribes,bounces,revenue,conversions,recipients',
-                'conversion_metric_id': undefined,
-              },
-            });
-            const stats = reportRes.data?.data?.attributes?.results?.[0] || {};
-            return {
-              id: campaign.id,
-              name: campaign.attributes?.name || 'Unknown',
-              status: campaign.attributes?.status,
-              sendDate: campaign.attributes?.send_time || campaign.attributes?.created_at,
-              recipientCount: stats.statistics?.recipients || 0,
-              openRate: stats.statistics?.open_rate || 0,
-              clickRate: stats.statistics?.click_rate || 0,
-              unsubscribeRate: stats.statistics?.unsubscribe_rate || 0,
-              bounceRate: stats.statistics?.bounce_rate || 0,
-              revenue: stats.statistics?.revenue || 0,
-              conversions: stats.statistics?.conversions || 0,
-              conversionRate: stats.statistics?.conversion_rate || 0,
-              emailsSent: stats.statistics?.recipients || 0,
-            };
-          } catch (err) {
-            return {
-              id: campaign.id,
-              name: campaign.attributes?.name || 'Unknown',
-              status: campaign.attributes?.status,
-              sendDate: campaign.attributes?.send_time || campaign.attributes?.created_at,
-              recipientCount: 0,
-              openRate: 0,
-              clickRate: 0,
-              unsubscribeRate: 0,
-              bounceRate: 0,
-              revenue: 0,
-              conversions: 0,
-              conversionRate: 0,
-              emailsSent: 0,
-              error: 'Report unavailable',
-            };
-          }
-        })
-      );
-      campaignsWithReports.push(...reports);
+    if (campaigns.length === 0) {
+      return res.json({ campaigns: [] });
     }
 
-    // Sort by revenue descending
+    // Fetch a single bulk report for all campaigns in the period (POST endpoint in v2024)
+    let reportResults = [];
+    try {
+      const reportRes = await client.post('/campaign-values-reports/', {
+        data: {
+          type: 'campaign-values-report',
+          attributes: {
+            timeframe: {
+              start: `${startDate}T00:00:00+00:00`,
+              end: `${endDate}T23:59:59+00:00`,
+            },
+            statistics: [
+              'opens',
+              'unique_opens',
+              'clicks',
+              'unique_clicks',
+              'unsubscribes',
+              'bounces',
+              'revenue',
+              'conversions',
+              'recipients',
+            ],
+          },
+        },
+      });
+      reportResults = reportRes.data?.data?.attributes?.results || [];
+    } catch (err) {
+      console.warn('Campaign values report failed:', err.response?.data?.errors?.[0]?.detail || err.message);
+    }
+
+    // Build a lookup map: campaign_id → statistics
+    const statsById = {};
+    for (const r of reportResults) {
+      const cid = r.campaign_id || r.id;
+      if (cid) statsById[cid] = r.statistics || r;
+    }
+
+    const campaignsWithReports = campaigns.map((campaign) => {
+      const stats = statsById[campaign.id] || {};
+      const recipients = stats.recipients || stats.unique_recipients || 0;
+      const opens = stats.unique_opens || stats.opens || 0;
+      const clicks = stats.unique_clicks || stats.clicks || 0;
+      const unsubs = stats.unsubscribes || 0;
+      const bounces = stats.bounces || 0;
+      const revenue = stats.revenue || 0;
+      const conversions = stats.conversions || 0;
+
+      return {
+        id: campaign.id,
+        name: campaign.attributes?.name || 'Unknown',
+        status: campaign.attributes?.status,
+        sendDate: campaign.attributes?.send_time || campaign.attributes?.created_at,
+        emailsSent: recipients,
+        recipientCount: recipients,
+        openRate: recipients > 0 ? opens / recipients : (stats.open_rate || 0),
+        clickRate: recipients > 0 ? clicks / recipients : (stats.click_rate || 0),
+        unsubscribeRate: recipients > 0 ? unsubs / recipients : (stats.unsubscribe_rate || 0),
+        bounceRate: recipients > 0 ? bounces / recipients : (stats.bounce_rate || 0),
+        revenue,
+        conversions,
+        conversionRate: recipients > 0 ? conversions / recipients : (stats.conversion_rate || 0),
+      };
+    });
+
+    // Sort by revenue descending by default
     campaignsWithReports.sort((a, b) => b.revenue - a.revenue);
 
     res.json({ campaigns: campaignsWithReports });

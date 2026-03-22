@@ -13,70 +13,81 @@ router.get('/', async (req, res) => {
   try {
     const client = createClient(apiKey);
 
-    // Fetch all flows
+    // Fetch all live flows
     const flows = await paginateAll(client, '/flows', {
       'filter': 'equals(status,"live")',
       'fields[flow]': 'name,status,trigger_type,created,updated',
     });
 
-    // Fetch flow value reports in batches
-    const batchSize = 5;
-    const flowsWithReports = [];
-
-    for (let i = 0; i < flows.length; i += batchSize) {
-      const batch = flows.slice(i, i + batchSize);
-      const results = await Promise.all(
-        batch.map(async (flow) => {
-          try {
-            const reportRes = await client.get('/flow-values-reports/', {
-              params: {
-                'filter': `equals(flow_id,"${flow.id}"),greater-or-equal(datetime,${startDate}T00:00:00Z),less-or-equal(datetime,${endDate}T23:59:59Z)`,
-                'statistics': 'opens,clicks,unsubscribes,bounces,revenue,conversions,recipients',
-              },
-            });
-            const stats = reportRes.data?.data?.attributes?.results?.[0] || {};
-            const emailsSent = stats.statistics?.recipients || 0;
-            return {
-              id: flow.id,
-              name: flow.attributes?.name || 'Unknown',
-              status: flow.attributes?.status,
-              triggerType: flow.attributes?.trigger_type || 'unknown',
-              created: flow.attributes?.created,
-              updated: flow.attributes?.updated,
-              emailsSent,
-              openRate: stats.statistics?.open_rate || 0,
-              clickRate: stats.statistics?.click_rate || 0,
-              unsubscribeRate: stats.statistics?.unsubscribe_rate || 0,
-              bounceRate: stats.statistics?.bounce_rate || 0,
-              revenue: stats.statistics?.revenue || 0,
-              conversions: stats.statistics?.conversions || 0,
-              conversionRate: stats.statistics?.conversion_rate || 0,
-              isStale: emailsSent === 0,
-            };
-          } catch (err) {
-            return {
-              id: flow.id,
-              name: flow.attributes?.name || 'Unknown',
-              status: flow.attributes?.status,
-              triggerType: flow.attributes?.trigger_type || 'unknown',
-              created: flow.attributes?.created,
-              updated: flow.attributes?.updated,
-              emailsSent: 0,
-              openRate: 0,
-              clickRate: 0,
-              unsubscribeRate: 0,
-              bounceRate: 0,
-              revenue: 0,
-              conversions: 0,
-              conversionRate: 0,
-              isStale: true,
-              error: 'Report unavailable',
-            };
-          }
-        })
-      );
-      flowsWithReports.push(...results);
+    if (flows.length === 0) {
+      return res.json({ flows: [] });
     }
+
+    // Fetch a single bulk report for all flows in the period (POST endpoint in v2024)
+    let reportResults = [];
+    try {
+      const reportRes = await client.post('/flow-values-reports/', {
+        data: {
+          type: 'flow-values-report',
+          attributes: {
+            timeframe: {
+              start: `${startDate}T00:00:00+00:00`,
+              end: `${endDate}T23:59:59+00:00`,
+            },
+            statistics: [
+              'opens',
+              'unique_opens',
+              'clicks',
+              'unique_clicks',
+              'unsubscribes',
+              'bounces',
+              'revenue',
+              'conversions',
+              'recipients',
+            ],
+          },
+        },
+      });
+      reportResults = reportRes.data?.data?.attributes?.results || [];
+    } catch (err) {
+      console.warn('Flow values report failed:', err.response?.data?.errors?.[0]?.detail || err.message);
+    }
+
+    // Build a lookup map: flow_id → statistics
+    const statsById = {};
+    for (const r of reportResults) {
+      const fid = r.flow_id || r.id;
+      if (fid) statsById[fid] = r.statistics || r;
+    }
+
+    const flowsWithReports = flows.map((flow) => {
+      const stats = statsById[flow.id] || {};
+      const recipients = stats.recipients || stats.unique_recipients || 0;
+      const opens = stats.unique_opens || stats.opens || 0;
+      const clicks = stats.unique_clicks || stats.clicks || 0;
+      const unsubs = stats.unsubscribes || 0;
+      const bounces = stats.bounces || 0;
+      const revenue = stats.revenue || 0;
+      const conversions = stats.conversions || 0;
+
+      return {
+        id: flow.id,
+        name: flow.attributes?.name || 'Unknown',
+        status: flow.attributes?.status,
+        triggerType: flow.attributes?.trigger_type || 'unknown',
+        created: flow.attributes?.created,
+        updated: flow.attributes?.updated,
+        emailsSent: recipients,
+        openRate: recipients > 0 ? opens / recipients : (stats.open_rate || 0),
+        clickRate: recipients > 0 ? clicks / recipients : (stats.click_rate || 0),
+        unsubscribeRate: recipients > 0 ? unsubs / recipients : (stats.unsubscribe_rate || 0),
+        bounceRate: recipients > 0 ? bounces / recipients : (stats.bounce_rate || 0),
+        revenue,
+        conversions,
+        conversionRate: recipients > 0 ? conversions / recipients : (stats.conversion_rate || 0),
+        isStale: recipients === 0,
+      };
+    });
 
     // Sort by revenue descending
     flowsWithReports.sort((a, b) => b.revenue - a.revenue);

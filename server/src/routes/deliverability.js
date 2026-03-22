@@ -70,11 +70,7 @@ router.get('/', async (req, res) => {
               metric_id: metricId,
               measurements: ['count'],
               interval: 'month',
-              page_size: 500,
-              filter: [
-                `greater-or-equal(datetime,${startDate}T00:00:00Z)`,
-                `less-or-equal(datetime,${endDate}T23:59:59Z)`,
-              ],
+              filter: `greater-or-equal(datetime,${startDate}T00:00:00Z),less-or-equal(datetime,${endDate}T23:59:59Z)`,
               timezone: 'UTC',
             },
           },
