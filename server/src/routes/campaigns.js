@@ -15,7 +15,7 @@ router.get('/', async (req, res) => {
 
     // Fetch all sent email campaigns in the date range
     const campaigns = await paginateAll(client, '/campaigns', {
-      'filter': `equals(status,"Sent"),equals(messages.channel,"email"),greater-or-equal(send_time,${startDate}T00:00:00Z),less-or-equal(send_time,${endDate}T23:59:59Z)`,
+      'filter': `equals(status,"Sent"),greater-or-equal(send_time,${startDate}T00:00:00Z),less-or-equal(send_time,${endDate}T23:59:59Z)`,
       'fields[campaign]': 'name,status,send_time,created_at',
     });
 

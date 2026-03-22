@@ -12,6 +12,14 @@ function createClient(apiKey) {
       'Content-Type': 'application/json',
     },
     timeout: 30000,
+    // Explicit serializer so bracket-notation keys like page[size] are never
+    // percent-encoded to page%5Bsize%5D, which Klaviyo would reject.
+    paramsSerializer: function serializeParams(params) {
+      return Object.entries(params)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&');
+    },
   });
 
   // Retry logic for rate limits
