@@ -1,0 +1,96 @@
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.sortable-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.sortable-table thead th {
+  background: var(--bg-elevated);
+  padding: 0.7rem 1rem;
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.sortable-table thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable-table thead th.sortable:hover {
+  color: var(--text-secondary);
+  background: var(--bg-card);
+}
+
+.sortable-table thead th.active {
+  color: var(--accent);
+}
+
+.th-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sort-icon {
+  font-size: 0.7rem;
+  opacity: 0.6;
+}
+
+.sortable-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.sortable-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.sortable-table tbody tr:hover {
+  background: var(--bg-elevated);
+}
+
+.sortable-table tbody tr.highlighted {
+  background: var(--accent-glow);
+}
+
+.sortable-table tbody td {
+  padding: 0.7rem 1rem;
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+
+.sortable-table tbody td:first-child {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.sortable-table .right {
+  text-align: right;
+}
+
+.null-val {
+  color: var(--text-muted);
+}
+
+.empty-cell {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2rem !important;
+  font-style: italic;
+}
+
+.rate-good { color: var(--accent) !important; }
+.rate-bad { color: var(--red) !important; }
+.rate-warn { color: var(--yellow) !important; }
