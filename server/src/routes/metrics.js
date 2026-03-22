@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
     const client = createClient(apiKey);
 
     // Fetch all metrics list
-    const metricsRes = await client.get('/metrics', { params: { 'page[size]': 100 } });
+    const metricsRes = await client.get('/metrics');
     const allMetrics = metricsRes.data?.data || [];
 
     const findMetric = (name) =>

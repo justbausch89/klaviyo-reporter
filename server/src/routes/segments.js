@@ -15,7 +15,6 @@ router.get('/', async (req, res) => {
     console.log('[segments] Fetching segments');
     const segments = await paginateAll(client, '/segments', {
       'fields[segment]': 'name,created,updated',
-      'additional-fields[segment]': 'profile_count',
     });
 
     // Sort by profile count, take top 10

@@ -45,7 +45,7 @@ function createClient(apiKey) {
 async function paginateAll(client, url, params = {}) {
   const results = [];
   let nextUrl = url;
-  let queryParams = { ...params, 'page[size]': 100 };
+  let queryParams = { ...params };
 
   while (nextUrl) {
     const response = await client.get(nextUrl, { params: queryParams });

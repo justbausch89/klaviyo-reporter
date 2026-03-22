@@ -40,10 +40,9 @@ router.get('/', async (req, res) => {
 
     // Fetch metrics to find bounce/unsubscribe/spam metrics
     const [metricsRes, listsRes] = await Promise.all([
-      client.get('/metrics', { params: { 'page[size]': 100 } }),
+      client.get('/metrics'),
       paginateAll(client, '/lists', {
         'fields[list]': 'name,created,updated',
-        'additional-fields[list]': 'profile_count',
       }),
     ]);
 
@@ -95,7 +94,7 @@ router.get('/', async (req, res) => {
     let totalProfiles = 0;
     let suppressedProfiles = 0;
     try {
-      const profilesRes = await client.get('/profiles', { params: { 'page[size]': 1 } });
+      const profilesRes = await client.get('/profiles');
       totalProfiles = profilesRes.data?.meta?.total || 0;
     } catch (err) {
       console.error('[deliverability] profiles count error:', JSON.stringify(err.response?.data || err.message));
