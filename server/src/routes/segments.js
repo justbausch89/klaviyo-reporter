@@ -12,8 +12,10 @@ router.get('/', async (req, res) => {
   try {
     const client = createClient(apiKey);
 
+    console.log('[segments] Fetching segments');
     const segments = await paginateAll(client, '/segments', {
-      'fields[segment]': 'name,created,updated,profile_count',
+      'fields[segment]': 'name,created,updated',
+      'additional-fields[segment]': 'profile_count',
     });
 
     // Sort by profile count, take top 10
@@ -31,7 +33,7 @@ router.get('/', async (req, res) => {
 
     res.json({ segments: sorted, totalSegments: segments.length });
   } catch (err) {
-    console.error('Segments error:', err.response?.data || err.message);
+    console.error('[segments] route error:', JSON.stringify(err.response?.data || err.message));
     res.status(err.response?.status || 500).json({
       error: err.response?.data?.errors?.[0]?.detail || err.message,
     });

@@ -14,9 +14,10 @@ router.get('/', async (req, res) => {
     const client = createClient(apiKey);
 
     // Fetch all live flows
+    console.log("[flows] Fetching flows with filter: equals(status,'live')");
     const flows = await paginateAll(client, '/flows', {
-      'filter': 'equals(status,"live")',
-      'fields[flow]': 'name,status,trigger_type,created,updated',
+      'filter': "equals(status,'live')",
+      'fields[flow]': 'name,status,created,updated',
     });
 
     if (flows.length === 0) {
@@ -50,7 +51,7 @@ router.get('/', async (req, res) => {
       });
       reportResults = reportRes.data?.data?.attributes?.results || [];
     } catch (err) {
-      console.warn('Flow values report failed:', err.response?.data?.errors?.[0]?.detail || err.message);
+      console.error('[flows] flow-values-reports error:', JSON.stringify(err.response?.data || err.message));
     }
 
     // Build a lookup map: flow_id → statistics
@@ -94,7 +95,7 @@ router.get('/', async (req, res) => {
 
     res.json({ flows: flowsWithReports });
   } catch (err) {
-    console.error('Flows error:', err.response?.data || err.message);
+    console.error('[flows] route error:', JSON.stringify(err.response?.data || err.message));
     res.status(err.response?.status || 500).json({
       error: err.response?.data?.errors?.[0]?.detail || err.message,
     });

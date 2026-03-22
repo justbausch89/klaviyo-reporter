@@ -42,7 +42,8 @@ router.get('/', async (req, res) => {
     const [metricsRes, listsRes] = await Promise.all([
       client.get('/metrics', { params: { 'page[size]': 100 } }),
       paginateAll(client, '/lists', {
-        'fields[list]': 'name,created,updated,profile_count',
+        'fields[list]': 'name,created,updated',
+        'additional-fields[list]': 'profile_count',
       }),
     ]);
 
@@ -77,7 +78,8 @@ router.get('/', async (req, res) => {
         });
         const results = r.data?.data?.attributes?.data || [];
         return results.reduce((sum, d) => sum + (d.measurements?.count?.[0] || 0), 0);
-      } catch {
+      } catch (err) {
+        console.error(`[deliverability] queryMetricCount(${metricId}) error:`, JSON.stringify(err.response?.data || err.message));
         return 0;
       }
     }
@@ -93,23 +95,11 @@ router.get('/', async (req, res) => {
     let totalProfiles = 0;
     let suppressedProfiles = 0;
     try {
-      const profilesRes = await client.get('/profiles', {
-        params: {
-          'filter': 'equals(subscriptions.email.marketing.suppressions,[])',
-          'page[size]': 1,
-          'additional-fields[profile]': 'subscriptions',
-        },
-      });
-      // Use total from meta if available
+      const profilesRes = await client.get('/profiles', { params: { 'page[size]': 1 } });
       totalProfiles = profilesRes.data?.meta?.total || 0;
-    } catch {
-      // Try another approach
-      try {
-        const r = await client.get('/profiles', { params: { 'page[size]': 1 } });
-        totalProfiles = r.data?.meta?.total || 0;
-      } catch {
-        totalProfiles = 0;
-      }
+    } catch (err) {
+      console.error('[deliverability] profiles count error:', JSON.stringify(err.response?.data || err.message));
+      totalProfiles = 0;
     }
 
     // Get list totals
@@ -141,7 +131,7 @@ router.get('/', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Deliverability error:', err.response?.data || err.message);
+    console.error('[deliverability] route error:', JSON.stringify(err.response?.data || err.message));
     res.status(err.response?.status || 500).json({
       error: err.response?.data?.errors?.[0]?.detail || err.message,
     });

@@ -14,8 +14,9 @@ router.get('/', async (req, res) => {
     const client = createClient(apiKey);
 
     // Fetch all sent email campaigns in the date range
+    console.log('[campaigns] Fetching campaigns with filter:', `equals(messages.channel,'email'),equals(status,'Sent'),greater-or-equal(send_time,${startDate}T00:00:00Z),less-or-equal(send_time,${endDate}T23:59:59Z)`);
     const campaigns = await paginateAll(client, '/campaigns', {
-      'filter': `equals(status,"Sent"),greater-or-equal(send_time,${startDate}T00:00:00Z),less-or-equal(send_time,${endDate}T23:59:59Z)`,
+      'filter': `equals(messages.channel,'email'),equals(status,'Sent'),greater-or-equal(send_time,${startDate}T00:00:00Z),less-or-equal(send_time,${endDate}T23:59:59Z)`,
       'fields[campaign]': 'name,status,send_time,created_at',
     });
 
@@ -50,7 +51,7 @@ router.get('/', async (req, res) => {
       });
       reportResults = reportRes.data?.data?.attributes?.results || [];
     } catch (err) {
-      console.warn('Campaign values report failed:', err.response?.data?.errors?.[0]?.detail || err.message);
+      console.error('[campaigns] campaign-values-reports error:', JSON.stringify(err.response?.data || err.message));
     }
 
     // Build a lookup map: campaign_id → statistics
@@ -92,7 +93,7 @@ router.get('/', async (req, res) => {
 
     res.json({ campaigns: campaignsWithReports });
   } catch (err) {
-    console.error('Campaigns error:', err.response?.data || err.message);
+    console.error('[campaigns] route error:', JSON.stringify(err.response?.data || err.message));
     res.status(err.response?.status || 500).json({
       error: err.response?.data?.errors?.[0]?.detail || err.message,
     });

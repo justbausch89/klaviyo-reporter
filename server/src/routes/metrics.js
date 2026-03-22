@@ -50,7 +50,8 @@ router.get('/', async (req, res) => {
           0
         );
         return { [measurement]: total };
-      } catch {
+      } catch (err) {
+        console.error(`[metrics] queryMetricAggregate(${metricId}) error:`, JSON.stringify(err.response?.data || err.message));
         return { [measurement]: 0 };
       }
     }
@@ -73,7 +74,8 @@ router.get('/', async (req, res) => {
         });
         const results = r.data?.data?.attributes?.data || [];
         return results.reduce((sum, d) => sum + (d.measurements?.sum?.[0] || 0), 0);
-      } catch {
+      } catch (err) {
+        console.error(`[metrics] queryRevenue(${metricId}) with by[] error:`, JSON.stringify(err.response?.data || err.message));
         try {
           const r2 = await client.post('/metric-aggregates/', {
             data: {
@@ -89,7 +91,8 @@ router.get('/', async (req, res) => {
           });
           const results2 = r2.data?.data?.attributes?.data || [];
           return results2.reduce((sum, d) => sum + (d.measurements?.sum?.[0] || 0), 0);
-        } catch {
+        } catch (err2) {
+          console.error(`[metrics] queryRevenue(${metricId}) fallback error:`, JSON.stringify(err2.response?.data || err2.message));
           return 0;
         }
       }
